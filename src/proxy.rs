@@ -35,7 +35,7 @@ impl ProxyHttp for RateLimitingProxy {
         let peer = Box::new(HttpPeer::new(
             upstream,
             false,
-            "one.one.one.one".to_string(),
+            "".to_string()
         ));
         Ok(peer)
     }

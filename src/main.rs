@@ -2,6 +2,7 @@
 extern crate tracing;
 use pingora::{
     listeners::TcpSocketOptions,
+    services::{listening::Service as ListeningService},
     protocols::TcpKeepalive,
     server::{Server, configuration::Opt},
 };
@@ -24,11 +25,11 @@ fn main() -> anyhow::Result<()> {
         .unwrap()
         .block_on(init_resources())?;
 
-    let mut my_server = Server::new(Some(opt))?;
-    my_server.bootstrap();
+    let mut server = Server::new(Some(opt))?;
+    server.bootstrap();
 
     let proxy = RateLimitingProxy::new("0.0.0.0:3000".to_string(), resources.rate_limiter)?;
-    let mut proxy = pingora::proxy::http_proxy_service(&my_server.configuration, proxy);
+    let mut proxy = pingora::proxy::http_proxy_service(&server.configuration, proxy);
     let mut options = TcpSocketOptions::default();
     options.tcp_fastopen = Some(10);
     options.tcp_keepalive = Some(TcpKeepalive {
@@ -40,8 +41,12 @@ fn main() -> anyhow::Result<()> {
     });
     proxy.add_tcp("0.0.0.0:8000");
 
-    my_server.add_service(proxy);
-    my_server.run_forever();
+    let mut prometheus_service_http = ListeningService::prometheus_http_service();
+    prometheus_service_http.add_tcp("127.0.0.1:6150");
+
+    server.add_service(proxy);
+    server.add_service(prometheus_service_http);
+    server.run_forever();
 }
 
 struct Resources {
